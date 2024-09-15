@@ -40,19 +40,19 @@ public class OracleUndoInsertExecutor extends AbstractUndoExecutor {
 
     @Override
     protected String buildUndoSQL() {
-        KeywordChecker keywordChecker= KeywordCheckerFactory.getKeywordChecker(JdbcConstants.ORACLE);
+        KeywordChecker keywordChecker = KeywordCheckerFactory.getKeywordChecker(JdbcConstants.ORACLE);
         TableRecords afterImage = sqlUndoLog.getAfterImage();
         List<Row> afterImageRows = afterImage.getRows();
         if (afterImageRows == null || afterImageRows.size() == 0) {
             throw new ShouldNeverHappenException("Invalid UNDO LOG");
         }
         Row row = afterImageRows.get(0);
-        StringBuffer mainSQL = new StringBuffer("DELETE FROM " + keywordChecker.checkAndReplace(sqlUndoLog.getTableName()));
-        StringBuffer where = new StringBuffer(" WHERE ");
-        boolean first = true;
+        StringBuilder mainSQL = new StringBuilder("DELETE FROM ").append(keywordChecker.checkAndReplace(sqlUndoLog.getTableName()));
+        StringBuilder where = new StringBuilder(" WHERE ");
+        // For a row, there's only one primary key now
         for (Field field : row.getFields()) {
             if (field.getKeyType() == KeyType.PrimaryKey) {
-                where.append(keywordChecker.checkAndReplace(field.getName()) +" = ?");
+                where.append(keywordChecker.checkAndReplace(field.getName())).append(" = ?");
             }
 
         }
@@ -60,8 +60,12 @@ public class OracleUndoInsertExecutor extends AbstractUndoExecutor {
     }
 
     @Override
-    protected void undoPrepare(PreparedStatement undoPST, ArrayList<Field> undoValues, Field pkValue) throws SQLException {
-        undoPST.setObject(1, pkValue.getValue(), pkValue.getType());
+    protected void undoPrepare(PreparedStatement undoPST, ArrayList<Field> undoValues, List<Field> pkValues) throws SQLException {
+        int parameterIndex = 0;
+        for (Field field : pkValues) {
+            parameterIndex++;
+            undoPST.setObject(parameterIndex, field.getValue(), field.getType());
+        }
     }
 
     /**

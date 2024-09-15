@@ -46,7 +46,7 @@ public class OracleUndoDeleteExecutor extends AbstractUndoExecutor {
 
     @Override
     protected String buildUndoSQL() {
-        KeywordChecker keywordChecker= KeywordCheckerFactory.getKeywordChecker(JdbcConstants.ORACLE);
+        KeywordChecker keywordChecker = KeywordCheckerFactory.getKeywordChecker(JdbcConstants.ORACLE);
         TableRecords beforeImage = sqlUndoLog.getBeforeImage();
         List<Row> beforeImageRows = beforeImage.getRows();
         if (beforeImageRows == null || beforeImageRows.size() == 0) {
@@ -54,8 +54,8 @@ public class OracleUndoDeleteExecutor extends AbstractUndoExecutor {
         }
         Row row = beforeImageRows.get(0);
 
-        StringBuffer insertColumns = new StringBuffer();
-        StringBuffer insertValues = new StringBuffer();
+        StringBuilder insertColumns = new StringBuilder();
+        StringBuilder insertValues = new StringBuilder();
         Field pkField = null;
         boolean first = true;
         for (Field field : row.getFields()) {
@@ -74,9 +74,7 @@ public class OracleUndoDeleteExecutor extends AbstractUndoExecutor {
             }
 
         }
-        if (first) {
-            first = false;
-        } else {
+        if (!first) {
             insertColumns.append(", ");
             insertValues.append(", ");
         }

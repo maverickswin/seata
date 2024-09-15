@@ -15,6 +15,18 @@
  */
 package io.seata.rm.datasource;
 
+import java.math.BigDecimal;
+import java.sql.Timestamp;
+import java.sql.Types;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.StringJoiner;
+
 import io.seata.common.util.CollectionUtils;
 import io.seata.common.util.StringUtils;
 import io.seata.core.model.Result;
@@ -22,16 +34,8 @@ import io.seata.rm.datasource.sql.struct.Field;
 import io.seata.rm.datasource.sql.struct.Row;
 import io.seata.rm.datasource.sql.struct.TableMeta;
 import io.seata.rm.datasource.sql.struct.TableRecords;
-import io.seata.rm.datasource.undo.UndoLogManager;
+import io.seata.rm.datasource.undo.AbstractUndoLogManager;
 import io.seata.rm.datasource.undo.parser.FastjsonUndoLogParser;
-
-import java.math.BigDecimal;
-import java.sql.Timestamp;
-import java.sql.Types;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
 
 /**
  * The type Data compare utils.
@@ -62,7 +66,7 @@ public class DataCompareUtils {
                         if (f1.getValue() == null) {
                             return Result.buildWithParams(false, "Field not equals, name {}, new value is null", f0.getName());
                         } else {
-                            String currentSerializer = UndoLogManager.getCurrentSerializer();
+                            String currentSerializer = AbstractUndoLogManager.getCurrentSerializer();
                             if (StringUtils.equals(currentSerializer, FastjsonUndoLogParser.NAME)) {
                                 convertType(f0, f1);
                             }
@@ -143,9 +147,9 @@ public class DataCompareUtils {
 
     private static Result<Boolean> compareRows(TableMeta tableMetaData, List<Row> oldRows, List<Row> newRows) {
         // old row to map
-        Map<String, Map<String, Field>> oldRowsMap = rowListToMap(oldRows, tableMetaData.getPkName());
+        Map<String, Map<String, Field>> oldRowsMap = rowListToMap(oldRows, tableMetaData.getPrimaryKeyOnlyName());
         // new row to map
-        Map<String, Map<String, Field>> newRowsMap = rowListToMap(newRows, tableMetaData.getPkName());
+        Map<String, Map<String, Field>> newRowsMap = rowListToMap(newRows, tableMetaData.getPrimaryKeyOnlyName());
         // compare data
         for (String rowKey : oldRowsMap.keySet()) {
             Map<String, Field> oldRow = oldRowsMap.get(rowKey);
@@ -168,23 +172,39 @@ public class DataCompareUtils {
         return Result.ok();
     }
 
-    private static Map<String, Map<String, Field>> rowListToMap(List<Row> rowList, String primaryKey) {
+
+    private static Map<String, Map<String, Field>> rowListToMap(List<Row> rowList, List<String> primaryKeysNames) {
         // {value of primaryKey, value of all columns}
-        Map<String, Map<String, Field>> rowMap = new HashMap<>();
+        Map<String, Map<String, Field>> rowMap = new HashMap<>(16);
         for (Row row : rowList) {
             // {uppercase fieldName : field}
-            Map<String, Field> colsMap = new HashMap<>();
-            String rowKey = null;
-            for (int j = 0; j < row.getFields().size(); j++) {
-                Field field = row.getFields().get(j);
-                if (field.getName().equalsIgnoreCase(primaryKey)) {
-                    rowKey = String.valueOf(field.getValue());
+            Map<String, Field> colsMap = new HashMap<>(16);
+            Map<String,Object> rowKeys = new HashMap<>(16);
+            for (Field field : row.getFields()) {
+                String fieldName = field.getName();
+                if (primaryKeysNames.contains(fieldName.toUpperCase()) || primaryKeysNames.contains(fieldName)) {
+                    rowKeys.put(fieldName, field.getValue());
                 }
-                colsMap.put(field.getName().trim().toUpperCase(), field);
+                colsMap.put(fieldName.trim().toUpperCase(), field);
             }
+            String rowKey = getRowKey(rowKeys.keySet(), rowKeys);
             rowMap.put(rowKey, colsMap);
         }
         return rowMap;
+    }
+
+    /**
+     * get RowKey
+     * @return rowKey
+     */
+    private static String getRowKey(Set<String> fields, Map<String,Object> rowsKeysMap) {
+        List<String> list = new ArrayList<>(fields);
+        Collections.sort(list);
+        StringJoiner rowKey = new StringJoiner("-", "", "");
+        for (String item : list) {
+            rowKey.add(String.valueOf(rowsKeysMap.get(item)));
+        }
+        return rowKey.toString();
     }
 
 }
